@@ -139,14 +139,12 @@ npx skills add vercel-labs/skills --skill find-skills -g -y
 ### Routing Rules
 Add auto-spawn rules here so MARVIN delegates work without being asked:
 
-<!-- Uncomment and customize these examples:
 - User mentions a CFP, speaking event, or conference -> spawn events-agent
 - User says "I shipped" / "I published" / "just posted" -> spawn content-agent
 - User asks to write a blog, social post, or newsletter -> spawn content-agent
 - User asks to research a topic in depth -> spawn research-agent
 - "Review my writing" / "check this draft" -> spawn content-agent
 - Post-event tracking (attendee lists, surveys) -> spawn events-agent
--->
 
 ---
 
