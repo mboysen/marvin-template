@@ -1,11 +1,14 @@
 ---
 name: marks_team_of_experts
 description: |
-  Spawns 5 PhD-level subagent reviewers in parallel for a Pareto-style
-  multi-perspective review of a system, decision, codebase, or finding.
+  Spawns PhD-level subagent reviewers in parallel for a Pareto-style
+  multi-perspective review of a system, decision, codebase, or finding:
+  3-5 domain lenses PLUS a mandatory first-principles premise red-team seat
+  that attacks the load-bearing assumption (is this even the right problem?).
   Each agent gets the same shared context plus a distinct expert lens;
-  they return ranked 3-5 recommendations; the skill synthesizes a unified
-  top 5-10 with a single "if you do ONE thing this week" closer.
+  they return ranked 3-5 recommendations; the skill leads the synthesis with
+  the premise verdict, then a unified top 5-10 with a single "if you do ONE
+  thing this week" closer.
   Triggers on: "team of experts review", "PhD-level review", "Pareto
   review of X", "what's the 20% that gives 80%", "multi-agent review".
   Use proactively when the user faces an ambiguous architectural choice,
@@ -46,6 +49,46 @@ no single agent had the right lens for all of it.
 
 **Customize when appropriate.** If reviewing a content strategy, swap in "Editorial Director" + "Audience Researcher" + "Distribution Strategist" etc. Always 3-5 distinct lenses, never overlapping.
 
+## The premise red-team — the MANDATORY seat (always include, every run)
+
+The domain lenses above review *the solution*. The single highest-value
+perspective reviews *whether it's the right problem* — and it must be a **standing
+seat in every panel**, not an emergent accident. Spawn it alongside the 3-5 domain
+lenses, always.
+
+**First-principles rationale.** A review's value = P(it changes a decision) ×
+(cost it averts). That payoff concentrates on the author's *highest-confidence,
+least-examined belief* — the premise. Reviewing what they're unsure of is
+low-value (already flagged); reviewing what they're confident-and-right about is
+zero-value; only **confident-AND-wrong** yields the win — and confident-and-wrong
+lives in the premise, the assumption so foundational the author can't see it (the
+water they swim in). An execution error costs the execution; a **premise error
+costs everything built on it.** Domain experts are structurally blind to it — they
+either share the frame or only see within their own boundary; the premise lives
+*above* all the domains.
+
+**Empirical proof (the canonical runs).** The top finding of the 2026-05-28
+whole-system review was a premise inversion ("spray-rate is the wrong #1; safety
+is"); the top finding of the 2026-05-29 security review was another ("the model
+isn't the #1 asset; the unauthenticated steam API is"). Both headline results were
+premise flips, not domain depth. The domains were the vehicle; premise-challenge
+was the payload.
+
+**The lens prompt (verbatim seed):** "You are a first-principles premise red-team.
+The other agents review the solution; your ONLY job is to attack the load-bearing
+assumption. Ask: Is the stated goal the real goal? Is the metric measuring what
+matters, or a proxy that diverges from it? Is this even the problem, or a symptom?
+What must be true for this whole effort to make sense — and is it? What is the
+author MOST confident about and therefore least examining? If the premise is
+sound, say so plainly and explain why — do NOT manufacture doubt. If it's wrong,
+name the cost of having built on it. Output: the 1-3 load-bearing assumptions,
+each rated sound / shaky / wrong, with the consequence if wrong, and end with: 'If
+the premise is wrong, the highest-value pivot is ___.'"
+
+This seat is the deliberate exception to "keep it tight" — it adds no synthesis
+overlap because it reviews a *different object* (the problem, not the solution),
+and it pays for itself on essentially every run.
+
 ## Workflow
 
 ### Step 1 — Confirm scope (one round of clarification max)
@@ -74,6 +117,7 @@ Use the `Agent` tool with:
 - `model: opus`
 - `run_in_background: true`
 - Send all spawn calls in **a single message** so they actually parallelize
+- **Always spawn the premise red-team seat** (see above) alongside the 3-5 domain lenses — it is not optional
 - Each prompt includes:
   1. Identity ("You are a PhD-level X engineer")
   2. Shared context (read these files, ground-truth numbers from latest test)
@@ -86,7 +130,12 @@ Use the `Agent` tool with:
 
 After spawning, briefly tell the user "5 agents running in parallel; will synthesize once all return." Do NOT poll output files. The harness notifies on each completion automatically. Continue any non-overlapping work in the meantime.
 
-### Step 5 — Synthesize once all 5 return
+### Step 5 — Synthesize once all agents return
+
+**Lead with the premise red-team.** If it flagged a wrong or shaky premise, that
+reframing comes FIRST — a Pareto list built under a broken premise just optimizes
+the wrong thing (see the canonical runs: both top findings were premise flips). If
+the premise verdict is "sound," say so and proceed to the domain synthesis.
 
 Build a unified top 5-10 list:
 
@@ -130,7 +179,8 @@ add CI yet").
 
 - **Recursive expert spawning** (agents that themselves spawn agents). Keep it one level deep.
 - **Overlapping lenses** (two "AI experts" with different specialties). Pick distinct, non-overlapping perspectives.
-- **More than 5 agents**. Diminishing returns; 5 is the sweet spot between coverage and synthesis tractability.
+- **More than ~6 agents**. Diminishing returns; **3-5 domain lenses + the mandatory premise red-team seat** is the sweet spot between coverage and synthesis tractability. The premise seat is the one standing exception to "keep it tight" — it reviews a different object (the problem, not the solution) and pays for itself nearly every run.
+- **Dropping the premise red-team to save a slot**. Never. It's the highest-value seat; cut a domain lens before cutting it.
 - **Asking agents to converge with each other**. They run independently; convergence happens in the synthesis step.
 - **Sycophantic prompts**. Explicitly tell each agent to push back. Reviews where everyone agrees with everyone produce no signal.
 
