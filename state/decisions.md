@@ -4,6 +4,26 @@ Rolling log of decisions made during MARVIN sessions. Referenced by `/start` for
 
 ---
 
+### 2026-06-01 - AI Precise: Letterbox the detector input (camera-agnostic), not square-squash
+**Decision:** Pad each frame to a centered square BEFORE rfdetr inference (un-pad detections back to native pixel space), instead of letting rfdetr's anisotropic `F.resize(...,[560,560])` squash it. Manifest `letterbox` knob, default ON, toggleable for A/B. Keys off runtime frame shape → camera-agnostic (DJI 16:9, ZED X One 16:10).
+**Context:** MN model = 93.7% mAP on its ~square static val set but real-weed confidence collapsed to 0.15–0.40 live on the 16:9 DJI feed. Root cause (5-PhD review): the 16:9→square squash is a ~1.78× vertical distortion the model never trained on — the static/live gap. NOT calibration (temperature is monotonic, can't separate overlapping scores). Shipped in 1.2.9.
+**Status:** Active — deployed to mn-demo 1.2.9; validated (365 weeds/6 species on a recorded run). Firing geometry unchanged (un-pad to native px).
+
+### 2026-06-01 - AI Precise: Tracker coast buffer + low-gate persistence, NOT high threshold or naive age-bump
+**Decision:** The fix for FP-vs-real-weed separation is TEMPORAL (persistence), not a confidence threshold. (a) Give the permissive `_DegenerateIoUTracker` a lost-track COAST buffer (coast a dropped track at its last bbox up to `max_track_gap_frames`, re-bind the same id) so `track_age` accumulates across low-confidence drops. (b) Keep a LOW gate (~0.15, per-class cleared). Do NOT raise `min_track_age` on the bare memoryless tracker (it makes misses worse), and do NOT raise the confidence gate (0.40 killed ALL detections — real weeds and noise overlap in 0.15–0.40).
+**Context:** The production tracker is memoryless (greedy IoU vs immediate-prev only; `use_permissive_tracker` defaults True). A 1-frame drop reset track_age → defeated the firing min_track_age gate → misses. `min_track_age_frames` default is 3, not 1. Validated: coast → **0 `TRACK_TOO_YOUNG`** across 2.2 min. Don't switch to supervision.ByteTrack (its ~0.2 score floor kills low-conf real weeds). Shipped in 1.2.9.
+**Status:** Active — 1.2.9 on mn-demo, gate reverted 0.40→0.15.
+
+### 2026-06-01 - AI Precise: Live overlay defaults to decisions-only; raw detector layer is opt-in
+**Decision:** The live `frame.jpg` overlay is now layer-selectable (`raw/tracked/fired/boundary/label` query params); the operator default shows DECISIONS ONLY (tracked=green + fired=red), with the raw per-frame detector layer (yellow) behind a "Show raw detections (debug)" UI toggle (`?raw=1`).
+**Context:** The operator's "lots of false positives" was largely the RAW yellow layer — per-frame detector output (flickers + COCO-91 out-of-taxonomy boxes) that is NOT what fires. Grading the system on the layer it's designed to discard drove a wrong high-threshold reflex. Shipped in 1.2.9.
+**Status:** Active — verified (raw=1 adds ~20 KB/frame vs decisions-only default).
+
+### 2026-06-01 - mn-demo: secure bring-up (#16) complete; build on the Orin, code-of-record on sparky
+**Decision:** mn-demo runs the full secure stack: app + router overlay (host-side `ai-precise-model-unlock` ExecStartPre decrypt, D1 firewall) + enforce mode + boot-enabled, encrypted MN model (network-bound DEK from sparky keyserver, unit `mndemo` enrolled with its **TPM** pubkey). v4a encrypted (`mndemo-v4a-cotton-v1`) + deployed as `_base/page_springs`. RFDETRMedium support added (manifest `architecture`). Image builds happen on the Orin (igpu base cached there); the canonical codebase lives on sparky `main` (commit, then deploy).
+**Context:** Bug found+fixed in `ai-precise-router/install-router.sh` (SIGPIPE under pipefail). GPU `jetson_clocks` does NOT persist (reverts on reboot/over hours → choppy live stream; re-lock manually — harden the perf unit). App unit won't start without `/dev/ai-precise-cam`. Live-stream "jumpiness" was the 2.4 GHz guest wifi, not the box — record on the box from loopback to review.
+**Status:** Active — 1.2.9 live on mn-demo. See sessions/2026-06-01.md.
+
 ### 2026-05-28 - AI Precise: Two Metrics to Watch Before Tuning Per-Nozzle Cooldown
 **Decision:** Before lowering `firing.cooldown_ms` (currently 200 ms — the per-nozzle debounce that fires DROP_COOLDOWN_DEBOUNCE), instrument and measure these TWO things first. Do NOT tune blind. Geometry coverage (Pareto pick #1 from 2026-05-27) is still the bigger lever; cooldown tuning is the candidate #2 lever AFTER geometry is fixed.
 
