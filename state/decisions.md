@@ -4,6 +4,28 @@ Rolling log of decisions made during MARVIN sessions. Referenced by `/start` for
 
 ---
 
+### 2026-06-08 - AI Precise: ZED X One capture goes HOST-SIDE (not in-container)
+**Decision:** Run the ZED SDK (pyzed) in a HOST process, not in the detector
+container. The host capture service (`deploy/zed-capture/`, pyzed 5.x + numpy 2
++ opencv in its own venv, native Argus) debayers/rectifies + applies the locked
+ISP profile and publishes the latest BGR frame to a stdlib `/dev/shm` seqlock
+bridge (`camera/zed_frame_bridge.py`). The container's `GMSLBackend` is now a
+thin bridge READER (no pyzed/cv2/numpy-2); the app runs the STANDARD image +
+`--ipc host`. The earlier in-container WITH_ZED Docker approach was reverted.
+**Context:** Three independent, verified blockers killed in-container pyzed on
+this box: (1) ZED SDK 5.3 pyzed requires numpy≥2, ABI-incompatible with the
+JetPack container's numpy-1 torch/cv2/rfdetr (clean numpy 2 breaks cv2 +
+`torch.from_numpy`; earlier "cv2 OK" results were false positives from
+`--ignore-installed` mixing numpy files); (2) SDK 4.2 (numpy-1) builds but its
+older protocol sees 0 cameras against the 1.4.2 (5.x-era) daemon; (3) Argus
+in-container needs `LD_PRELOAD=/usr/lib/aarch64-linux-gnu/nvidia/libnvjpeg.so`
+for a `_enc` symbol-scope shadow. daemon=5.x ⇒ SDK 5.x ⇒ numpy 2 ⇒ separate
+process. Host-native Argus also avoids the LD_PRELOAD hack.
+**Status:** Active — code committed (`af11bff` + `e5e0533`, branch
+`feat/zed-gmsl-camera`), 192 tests green. Open: native ZED SDK 5.3 host install
+(re-run `install-zed-capture.sh`; CUDA-on-PATH fix applied) → first light →
+Phase 2 recal at 1920×1200. See `sessions/2026-06-08.md`.
+
 ### 2026-06-02 - v4a (watermarked) deployed to paige_springs
 **Decision:** Deploy the white-box-watermarked v4a cotton-weed model to paige's NVMe, encrypted + network-bound like MN. Encrypted `outputs/v4a_wm_whitebox/checkpoint_whitebox.pth` (sha `f7b1221b…`, corr 0.20) → `model.enc`; signed manifest with `architecture: RFDETRMedium`; DEK `paige-v4a-cotton-v1` registered; re-enrolled paige for BOTH keys (preserved pubkey + ts_node → MN decrypt untouched); staged sealed bundle to `_base/v4a_cotton`; decrypt-verified end-to-end via the keyserver auth chain. Active model stays MN — v4a is cotton-weed, activate only for cotton fields (`AIP_MODEL_BUNDLE=_base/v4a_cotton` + app model_version + restart).
 **Context:** Whole deploy ran on sparky (MARVIN runs ON sparky; `ssh sparky` is loopback — wasted cycles before realizing). Keyserver state: paige `allowed_key_ids=[paige-mn-weed-v1, paige-v4a-cotton-v1]`. Plaintext + DEK shredded after staging. **Gap found:** a plaintext base checkpoint still sits at `~/Documents/ai-precise/models/_base/MN_weedmodel_final/checkpoint.pt` on paige (outside the encryption) — remove to fully seal.
